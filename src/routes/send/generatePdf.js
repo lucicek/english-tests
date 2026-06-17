@@ -1,5 +1,12 @@
-import path from "path";
 import PDFDocument from "pdfkit";
+import fs from "fs";
+import { fileURLToPath } from "url";
+import path from "path";
+
+// správná absolutní cesta k fontu (funguje i v build/serverless)
+const fontPath = fileURLToPath(
+  new URL("../../lib/fonts/Roboto-Regular.ttf", import.meta.url)
+);
 
 export async function generatePdf(qData, aData, name = "") {
   const doc = new PDFDocument({ margin: 40 });
@@ -10,7 +17,9 @@ export async function generatePdf(qData, aData, name = "") {
     doc.on("end", () => resolve(Buffer.concat(buffers)));
   });
 
-  doc.font(path.resolve("./static/fonts/Roboto-Regular.ttf"));
+  // ✅ FONT SAFE LOAD
+  const fontBuffer = fs.readFileSync(fontPath);
+  doc.font(fontBuffer);
 
   let points = 0;
 
@@ -27,7 +36,6 @@ export async function generatePdf(qData, aData, name = "") {
   const lineHeight = 14;
   const paddingX = 6;
   const paddingY = 2;
-
   const optionBoxHeight = lineHeight + paddingY * 2;
 
   doc.fontSize(20).fillColor("black").text("English Test Results");
@@ -39,7 +47,6 @@ export async function generatePdf(qData, aData, name = "") {
   }
 
   for (const type of types) {
-    // ✔️ FIX: hezký název
     doc.fontSize(16).text(typeLabels[type] ?? type.toUpperCase());
     doc.moveDown(0.5);
 
@@ -84,24 +91,21 @@ export async function generatePdf(qData, aData, name = "") {
         const isSelected = userAnswer === opt.value;
         const isCorrect = q.answer === opt.value;
 
-        const fontSize = 12;
-        const lineHeight = 14;
-
         if (isSelected) {
-          doc.rect(
-            x - paddingX,
-            y - paddingY,
-            textWidth + paddingX * 2,
-            optionBoxHeight
-          ).stroke("#0000ff");
+          doc
+            .rect(
+              x - paddingX,
+              y - paddingY,
+              textWidth + paddingX * 2,
+              optionBoxHeight
+            )
+            .stroke("#0000ff");
         }
 
         doc
-          .fontSize(fontSize)
+          .fontSize(12)
           .fillColor(isCorrect ? "green" : "black")
           .text(text);
-
-        doc.y = doc.y;
       });
 
       doc.fillColor("black");

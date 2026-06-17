@@ -5,7 +5,7 @@
   let result = null;
 
   let sender = "englishtest";
-  let to = "monzerova@email.cz";
+  let to = "mo.vitek@seznam.cz";
   let name = "";
 
   onMount(() => {
