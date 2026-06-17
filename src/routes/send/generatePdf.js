@@ -1,10 +1,6 @@
 import PDFDocument from "pdfkit";
-import { fileURLToPath } from "url";
 import { readFileSync } from "fs";
-
-import roboto from "$lib/fonts/Roboto-Regular.ttf?url";
-
-const fontPath = fileURLToPath(new URL(roboto, import.meta.url));
+import path from "path";
 
 export async function generatePdf(qData, aData, name = "") {
   const doc = new PDFDocument({ margin: 40 });
@@ -15,8 +11,10 @@ export async function generatePdf(qData, aData, name = "") {
     doc.on("end", () => resolve(Buffer.concat(buffers)));
   });
 
-  // ✅ SAFE FONT LOAD (funguje i v build runtime)
+  // ✅ STABILNÍ CESTA (static folder se vždy deployne)
+  const fontPath = path.resolve("static/fonts/Roboto-Regular.ttf");
   const fontBuffer = readFileSync(fontPath);
+
   doc.font(fontBuffer);
 
   let points = 0;
@@ -59,13 +57,12 @@ export async function generatePdf(qData, aData, name = "") {
       doc.moveDown(0.3);
 
       options.forEach((opt) => {
-        const text = `${opt.label}) ${opt.value}`;
         const isCorrect = q.answer === opt.value;
 
         doc
           .fontSize(12)
           .fillColor(isCorrect ? "green" : "black")
-          .text(text);
+          .text(`${opt.label}) ${opt.value}`);
       });
 
       doc.fillColor("black");
