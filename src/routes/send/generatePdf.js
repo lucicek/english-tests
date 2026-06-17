@@ -1,12 +1,10 @@
 import PDFDocument from "pdfkit";
-import fs from "fs";
 import { fileURLToPath } from "url";
-import path from "path";
+import { readFileSync } from "fs";
 
-// správná absolutní cesta k fontu (funguje i v build/serverless)
-const fontPath = fileURLToPath(
-  new URL("../../lib/fonts/Roboto-Regular.ttf", import.meta.url)
-);
+import roboto from "$lib/fonts/Roboto-Regular.ttf?url";
+
+const fontPath = fileURLToPath(new URL(roboto, import.meta.url));
 
 export async function generatePdf(qData, aData, name = "") {
   const doc = new PDFDocument({ margin: 40 });
@@ -17,8 +15,8 @@ export async function generatePdf(qData, aData, name = "") {
     doc.on("end", () => resolve(Buffer.concat(buffers)));
   });
 
-  // ✅ FONT SAFE LOAD
-  const fontBuffer = fs.readFileSync(fontPath);
+  // ✅ SAFE FONT LOAD (funguje i v build runtime)
+  const fontBuffer = readFileSync(fontPath);
   doc.font(fontBuffer);
 
   let points = 0;
@@ -33,12 +31,7 @@ export async function generatePdf(qData, aData, name = "") {
     reading3: "READING 3"
   };
 
-  const lineHeight = 14;
-  const paddingX = 6;
-  const paddingY = 2;
-  const optionBoxHeight = lineHeight + paddingY * 2;
-
-  doc.fontSize(20).fillColor("black").text("English Test Results");
+  doc.fontSize(20).text("English Test Results");
   doc.moveDown();
 
   if (name) {
@@ -47,7 +40,7 @@ export async function generatePdf(qData, aData, name = "") {
   }
 
   for (const type of types) {
-    doc.fontSize(16).text(typeLabels[type] ?? type.toUpperCase());
+    doc.fontSize(16).text(typeLabels[type]);
     doc.moveDown(0.5);
 
     qData[type].forEach((q, i) => {
@@ -60,47 +53,14 @@ export async function generatePdf(qData, aData, name = "") {
         { label: "D", value: q.d }
       ].filter(o => o.value);
 
-      if (userAnswer === q.answer) {
-        points++;
-      }
+      if (userAnswer === q.answer) points++;
 
-      const questionHeight = doc.heightOfString(q.question);
-      const totalHeight =
-        questionHeight +
-        8 +
-        options.length * optionBoxHeight +
-        10;
-
-      if (doc.y + totalHeight > doc.page.height - doc.page.margins.bottom) {
-        doc.addPage();
-      }
-
-      // QUESTION
-      doc.fontSize(12).fillColor("black").text(q.question);
+      doc.fontSize(12).text(q.question);
       doc.moveDown(0.3);
 
-      // OPTIONS
       options.forEach((opt) => {
         const text = `${opt.label}) ${opt.value}`;
-
-        const x = doc.x;
-        const y = doc.y;
-
-        const textWidth = doc.widthOfString(text);
-
-        const isSelected = userAnswer === opt.value;
         const isCorrect = q.answer === opt.value;
-
-        if (isSelected) {
-          doc
-            .rect(
-              x - paddingX,
-              y - paddingY,
-              textWidth + paddingX * 2,
-              optionBoxHeight
-            )
-            .stroke("#0000ff");
-        }
 
         doc
           .fontSize(12)
@@ -115,7 +75,7 @@ export async function generatePdf(qData, aData, name = "") {
     doc.moveDown();
   }
 
-  doc.fontSize(18).fillColor("black").text(`Points: ${points}`);
+  doc.fontSize(18).text(`Points: ${points}`);
 
   doc.end();
 
