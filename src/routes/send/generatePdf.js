@@ -1,6 +1,4 @@
 import PDFDocument from "pdfkit";
-import { readFileSync } from "fs";
-import path from "path";
 
 export async function generatePdf(qData, aData, name = "") {
   const doc = new PDFDocument({ margin: 40 });
@@ -10,12 +8,6 @@ export async function generatePdf(qData, aData, name = "") {
     doc.on("data", buffers.push.bind(buffers));
     doc.on("end", () => resolve(Buffer.concat(buffers)));
   });
-
-  // ✅ STABILNÍ CESTA (static folder se vždy deployne)
-  const fontPath = path.resolve("static/fonts/Roboto-Regular.ttf");
-  const fontBuffer = readFileSync(fontPath);
-
-  doc.font(fontBuffer);
 
   let points = 0;
 
@@ -29,7 +21,24 @@ export async function generatePdf(qData, aData, name = "") {
     reading3: "READING 3"
   };
 
-  doc.fontSize(20).text("English Test Results");
+  const optionHeight = 18;
+  const questionSpacing = 8;
+
+  function getQuestionHeight(q, optionsCount) {
+    const questionHeight = doc.heightOfString(q.question, {
+      width: doc.page.width - doc.page.margins.left - doc.page.margins.right
+    });
+
+    return questionHeight + 10 + optionsCount * optionHeight + questionSpacing;
+  }
+
+  function ensureSpace(height) {
+    if (doc.y + height > doc.page.height - doc.page.margins.bottom) {
+      doc.addPage();
+    }
+  }
+
+  doc.fontSize(20).fillColor("black").text("English Test Results");
   doc.moveDown();
 
   if (name) {
@@ -38,11 +47,11 @@ export async function generatePdf(qData, aData, name = "") {
   }
 
   for (const type of types) {
-    doc.fontSize(16).text(typeLabels[type]);
+    doc.fontSize(16).text(typeLabels[type] ?? type.toUpperCase());
     doc.moveDown(0.5);
 
-    qData[type].forEach((q, i) => {
-      const userAnswer = aData[type]?.[i];
+    qData[type].forEach((q) => {
+      const userAnswer = aData[type]?.[qData[type].indexOf(q)];
 
       const options = [
         { label: "A", value: q.a },
@@ -51,18 +60,48 @@ export async function generatePdf(qData, aData, name = "") {
         { label: "D", value: q.d }
       ].filter(o => o.value);
 
-      if (userAnswer === q.answer) points++;
+      if (userAnswer === q.answer) {
+        points++;
+      }
 
-      doc.fontSize(12).text(q.question);
+      // 👉 SPOČÍTÁME VÝŠKU BLOKU PŘEDEM
+      const blockHeight = getQuestionHeight(q, options.length);
+
+      // 👉 PAGE BREAK PŘED RENDEREM (KLÍČOVÉ)
+      ensureSpace(blockHeight);
+
+      // QUESTION
+      doc.fontSize(12).fillColor("black").text(q.question);
       doc.moveDown(0.3);
 
+      // OPTIONS
       options.forEach((opt) => {
+        const text = `${opt.label}) ${opt.value}`;
+
+        const isSelected = userAnswer === opt.value;
         const isCorrect = q.answer === opt.value;
+
+        const x = doc.x;
+        const y = doc.y;
+
+        const textWidth = doc.widthOfString(text);
+
+        if (isSelected) {
+          doc
+            .save()
+            .lineWidth(1)
+            .strokeColor("#0000ff")
+            .rect(x - 2, y - 2, textWidth + 4, optionHeight)
+            .stroke()
+            .restore();
+        }
 
         doc
           .fontSize(12)
           .fillColor(isCorrect ? "green" : "black")
-          .text(`${opt.label}) ${opt.value}`);
+          .text(text, x, y);
+
+        doc.y = y + optionHeight;
       });
 
       doc.fillColor("black");
